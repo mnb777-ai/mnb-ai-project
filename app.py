@@ -2,6 +2,7 @@ import streamlit as st
 from openai import OpenAI
 import tempfile
 import os
+from datetime import datetime
 
 # إعدادات الصفحة
 st.set_page_config(
@@ -14,6 +15,7 @@ st.set_page_config(
 if 'client' not in st.session_state:
     st.session_state.client = None
     st.session_state.api_key_valid = False
+    st.session_state.conversation_history = []
 
 # الشريط الجانبي
 with st.sidebar:
@@ -24,11 +26,10 @@ with st.sidebar:
         if api_key:
             try:
                 client = OpenAI(api_key=api_key)
-                # اختبار اتصال فعلي بالنموذج
                 models = client.models.list()
                 available_models = [m.id for m in models.data]
                 
-                if "gpt-4-turbo-preview" in available_models:
+                if "gpt-4" in available_models:  # تغيير للنموذج المتاح
                     st.session_state.client = client
                     st.session_state.api_key_valid = True
                     st.success("✅ تم تفعيل المفتاح بنجاح!")
@@ -53,22 +54,53 @@ with tab1:
     if st.button("إرسال", key="send_btn") and st.session_state.api_key_valid:
         with st.spinner("جارٍ معالجة طلبك..."):
             try:
+                # إضافة رسالة المستخدم للسجل
+                st.session_state.conversation_history.append({
+                    "role": "user",
+                    "content": user_input,
+                    "timestamp": datetime.now().isoformat()
+                })
+                
                 response = st.session_state.client.chat.completions.create(
-                    model="gpt-4-turbo-preview",
+                    model="gpt-4",  # تغيير للنموذج المتاح
                     messages=[{"role": "user", "content": user_input}],
                     temperature=0.7,
                     max_tokens=2000
                 )
+                
+                # استخراج الرد
+                ai_response = response.choices[0].message.content
+                
+                # إضافة رد الذكاء الاصطناعي للسجل
+                st.session_state.conversation_history.append({
+                    "role": "assistant",
+                    "content": ai_response,
+                    "timestamp": datetime.now().isoformat()
+                })
+                
                 st.markdown(f"""
                 <div style='background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-top: 10px;'>
-                    {response.choices[0].message.content}
+                    {ai_response}
                 </div>
                 """, unsafe_allow_html=True)
+                
+                # خيار لتنزيل سجل المحادثة
+                history_text = "\n\n".join(
+                    f"{msg['role']} ({msg['timestamp']}):\n{msg['content']}" 
+                    for msg in st.session_state.conversation_history
+                )
+                
+                st.download_button(
+                    label="حفظ المحادثة",
+                    data=history_text,
+                    file_name="conversation_history.txt",
+                    mime="text/plain"
+                )
                 
             except Exception as e:
                 st.error(f"حدث خطأ: {str(e)}")
 
-# تبويب توليد الصور
+# باقي التبويبات (الصوت والصورة) تبقى كما هي في الكود السابق...
 with tab2:
     st.subheader("توليد صور بالذكاء الاصطناعي")
     image_prompt = st.text_input("وصف الصورة المطلوبة", placeholder="صورة لشروق الشمس فوق الجبال", key="image_prompt")
@@ -90,7 +122,6 @@ with tab2:
                 if "content_policy_violation" in str(e):
                     st.warning("الوصف يحتوي على محتوى غير مسموح به")
 
-# تبويب تحويل الصوت
 with tab3:
     st.subheader("تحويل الصوت إلى نص")
     st.info("الحد الأقصى لحجم الملف: 25MB")
@@ -121,28 +152,3 @@ with tab3:
 # تذييل الصفحة
 st.markdown("---")
 st.caption("MNB AI © 2024 - جميع الحقوق محفوظة")
-
-# إضافة CSS مخصص
-st.markdown("""
-<style>
-.stButton>button {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 10px 24px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
-    margin: 4px 2px;
-    cursor: pointer;
-    border-radius: 8px;
-}
-.stTextArea>div>div>textarea {
-    min-height: 150px;
-}
-[data-testid="stSidebar"] {
-    background-color: #f8f9fa;
-}
-</style>
-""", unsafe_allow_html=True)

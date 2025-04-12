@@ -44,7 +44,7 @@ with tab1:
     if st.button("إرسال") and st.session_state.client:
         try:
             response = st.session_state.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4-turbo-preview",
                 messages=[{"role": "user", "content": prompt}]
             )
             st.write(response.choices[0].message.content)
